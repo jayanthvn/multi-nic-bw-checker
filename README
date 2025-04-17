@@ -1,0 +1,9 @@
+# multi-nic-bw-checker
+
+A simple containerized Go app to check max bandwidth across all pod interfaces using `iperf3`.
+
+## 🔧 Build
+
+```bash
+make build
+
