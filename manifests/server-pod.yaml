@@ -4,12 +4,14 @@ metadata:
   name: bw-server
 spec:
   containers:
-  - name: server
-    image: your-repo/multi-nic-bw-checker:latest
+  - name: bw-server
+    image: multi-bw:v4
+    command: ["/bin/bash", "-c", "ls -l /usr/local/bin/ && /usr/local/bin/bandwidth-checker"]  
     env:
     - name: IPERF_MODE
       value: "server"
     securityContext:
       capabilities:
         add: ["NET_ADMIN"]
+  restartPolicy: Never
 

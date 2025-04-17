@@ -1,52 +1,42 @@
 package main
 
 import (
+	"fmt"
 	"log"
-	"net"
 	"os"
 	"os/exec"
 )
 
 func main() {
-	serverMode := os.Getenv("IPERF_MODE") == "server"
-	target := os.Getenv("TARGET_IP")
+	mode := os.Getenv("IPERF_MODE")
+	if mode == "server" {
+		fmt.Println("Starting iperf3 server with verbose logging...")
+		cmd := exec.Command("iperf3", "-s", "--verbose")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		if err != nil {
+			log.Fatalf("iperf3 server failed: %v", err)
+		}
+		// iperf3 should block and keep the pod running.
+		return
+	}
+
+	ip := os.Getenv("TARGET_IP")
+	if ip == "" {
+		log.Fatal("TARGET_IP not set")
+	}
 	duration := os.Getenv("DURATION")
 	if duration == "" {
 		duration = "10"
 	}
 
-	interfaces, err := net.Interfaces()
+	fmt.Printf("Testing bandwidth to %s for %s seconds\n", ip, duration)
+	cmd := exec.Command("iperf3", "-c", ip, "-t", duration)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
 	if err != nil {
-		log.Fatalf("Failed to get interfaces: %v", err)
-	}
-
-	for _, iface := range interfaces {
-		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
-			continue
-		}
-
-		addrs, _ := iface.Addrs()
-		for _, addr := range addrs {
-			ip, _, _ := net.ParseCIDR(addr.String())
-			if ip == nil || ip.To4() == nil {
-				continue
-			}
-
-			if serverMode {
-				cmd := exec.Command("iperf3", "-s")
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				log.Printf("Starting iperf3 server on interface: %s", iface.Name)
-				_ = cmd.Run()
-				return
-			} else if target != "" {
-				log.Printf("Running iperf3 test from %s to %s", ip.String(), target)
-				cmd := exec.Command("iperf3", "-c", target, "-B", ip.String(), "-t", duration)
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				_ = cmd.Run()
-			}
-		}
+		log.Fatalf("iperf3 client failed: %v", err)
 	}
 }
-

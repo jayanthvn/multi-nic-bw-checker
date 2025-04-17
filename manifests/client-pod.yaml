@@ -5,10 +5,16 @@ metadata:
 spec:
   containers:
   - name: client
-    image: your-repo/multi-nic-bw-checker:latest
-    command: ["/bin/sh"]
-    args: ["-c", "sleep infinity"]
+    image: multi-bw:v4
+    command: ["/usr/local/bin/bandwidth-checker"]
+    env:
+    - name: IPERF_MODE
+      value: "client"
+    - name: TARGET_IP
+      value: "server_ip"
+    - name: DURATION
+      value: "10"
     securityContext:
       capabilities:
         add: ["NET_ADMIN"]
-
+  restartPolicy: Never  
