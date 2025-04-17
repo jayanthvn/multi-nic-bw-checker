@@ -5,15 +5,17 @@ metadata:
 spec:
   containers:
   - name: client
-    image: multi-bw:v4
+    image: multi-bw:v6
     command: ["/usr/local/bin/bandwidth-checker"]
     env:
     - name: IPERF_MODE
       value: "client"
     - name: TARGET_IP
-      value: "server_ip"
+      value: "192.168.11.169"
     - name: DURATION
       value: "10"
+    - name: PARALLEL
+      value: "5"    
     securityContext:
       capabilities:
         add: ["NET_ADMIN"]

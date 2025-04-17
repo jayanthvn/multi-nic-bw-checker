@@ -31,6 +31,11 @@ func main() {
 		duration = "10"
 	}
 
+	parallel := os.Getenv("PARALLEL")
+	if parallel == "" {
+		parallel = "5"
+	}
+
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		log.Fatalf("failed to list interfaces: %v", err)
@@ -52,7 +57,7 @@ func main() {
 			}
 
 			fmt.Printf("Testing bandwidth from %s (%s) to %s for %s seconds\n", iface.Name, ip.String(), targetIP, duration)
-			cmd := exec.Command("iperf3", "-B", ip.String(), "-c", targetIP, "-t", duration)
+			cmd := exec.Command("iperf3", "-B", ip.String(), "-c", targetIP, "-t", duration, "-P", parallel)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			err = cmd.Run()

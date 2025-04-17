@@ -1,60 +1,187 @@
 # multi-nic-bw-checker
 
-A simple containerized Go app to check max bandwidth across all pod interfaces using `iperf3`.
+A lightweight utility to validate **network bandwidth across multiple network interfaces** in Kubernetes using `iperf3`. It is especially useful for debugging and verifying multi-NIC setups in `hostNetwork` pods.
 
-## 🔧 Build
+---
+
+## 📦 Project Layout
+
+```
+multi-nic-bw-checker/
+├── cmd/                    # Go implementation of the checker
+│   └── main.go
+├── Dockerfile              # Container build definition
+├── Makefile                # Build and push helpers
+├── README.md               # This file
+├── manifests/              # Kubernetes pod manifests
+│   ├── client-pod.yaml
+│   └── server-pod.yaml
+└── go.mod                  # Go module definition
+```
+
+---
+
+## 🚀 Getting Started
+
+### 1. Build the Container
 
 ```bash
 make build
+# or manually:
+docker build -t <your-docker-repo>/multi-nic-bw-checker:latest .
+```
 
-## Steps
-1. Update image tag in client and server pod yamls.
-2. Apply server yaml
-3. Update server IP in client's yaml TARGET_IP
-4. Apply client yaml
-5. Check client pod logs
+### 2. Push the Image
 
+```bash
+make push
+# or manually:
+docker push <your-docker-repo>/multi-nic-bw-checker:latest
+```
 
-## YAML changes
-```Run server in one pod:
+### 3. Deploy the iperf3 Server
 
+```bash
+kubectl apply -f manifests/server-pod.yaml
+```
 
-env:
-- name: IPERF_MODE
-  value: "server"
+Retrieve the server pod IP:
 
-```Run client in another:
+```bash
+kubectl get pod bw-server -o wide
+```
 
+### 4. Deploy the Client
 
-env:
-- name: IPERF_MODE
-  value: "client"
-- name: TARGET_IP
-  value: "SERVER_IP"
+Update `TARGET_IP` in `manifests/client-pod.yaml` with the server pod IP, then apply:
 
+```bash
+kubectl apply -f manifests/client-pod.yaml
+```
 
-## Test run
+The client will:
+- Discover all active, non-loopback IPv4 interfaces.
+- Use `-B` to bind iperf3 tests from each source IP.
+- Print bandwidth results per interface.
+
+---
+
+## ⚙️ Environment Variables
+
+| Variable     | Description                            | Default |
+|--------------|----------------------------------------|---------|
+| `IPERF_MODE` | `server` or `client`                   | N/A     |
+| `TARGET_IP`  | IP address of the iperf3 server        | N/A     |
+| `DURATION`   | iperf3 test duration in seconds        | `10`    |
+| `PARALLEL`   | Number of parallel iperf3 streams      | `5`     |
+
+---
+
+## Sample test run for c5.xlarge
 
 kubectl logs bw-client
-
-Testing bandwidth from eth0 (192.168.3.182) to 192.168.51.11 for 10 seconds
-Connecting to host 192.168.51.11, port 5201
-[  5] local 192.168.3.182 port 36313 connected to 192.168.51.11 port 5201
+Testing bandwidth from eth0 (192.168.38.235) to 192.168.11.169 for 10 seconds
+[varavaj@dev-dsk-varavaj-2b-3c80898a multi-nic-bw-checker]$ kubectl logs bw-client
+Testing bandwidth from eth0 (192.168.38.235) to 192.168.11.169 for 10 seconds
+Connecting to host 192.168.11.169, port 5201
+[  5] local 192.168.38.235 port 38213 connected to 192.168.11.169 port 5201
+[  7] local 192.168.38.235 port 46067 connected to 192.168.11.169 port 5201
+[  9] local 192.168.38.235 port 41949 connected to 192.168.11.169 port 5201
+[ 11] local 192.168.38.235 port 33475 connected to 192.168.11.169 port 5201
+[ 13] local 192.168.38.235 port 41845 connected to 192.168.11.169 port 5201
 [ ID] Interval           Transfer     Bitrate         Retr  Cwnd
-[  5]   0.00-1.00   sec   594 MBytes  4.98 Gbits/sec    3   3.03 MBytes       
-[  5]   1.00-2.00   sec   592 MBytes  4.97 Gbits/sec    0   3.03 MBytes       
-[  5]   2.00-3.00   sec   592 MBytes  4.97 Gbits/sec    0   3.03 MBytes       
-[  5]   3.00-4.00   sec   592 MBytes  4.97 Gbits/sec    0   3.03 MBytes       
-[  5]   4.00-5.00   sec   591 MBytes  4.96 Gbits/sec    0   3.03 MBytes       
-[  5]   5.00-6.00   sec   592 MBytes  4.97 Gbits/sec    0   3.03 MBytes       
-[  5]   6.00-7.00   sec   592 MBytes  4.97 Gbits/sec    0   3.03 MBytes       
-[  5]   7.00-8.00   sec   592 MBytes  4.97 Gbits/sec    0   3.03 MBytes       
-[  5]   8.00-9.00   sec   591 MBytes  4.96 Gbits/sec    0   3.03 MBytes       
-[  5]   9.00-10.00  sec   592 MBytes  4.97 Gbits/sec    0   3.03 MBytes       
+[  5]   0.00-1.00   sec   241 MBytes  2.02 Gbits/sec    9    891 KBytes       
+[  7]   0.00-1.00   sec   239 MBytes  2.00 Gbits/sec   55    524 KBytes       
+[  9]   0.00-1.00   sec   238 MBytes  1.99 Gbits/sec   27    507 KBytes       
+[ 11]   0.00-1.00   sec   236 MBytes  1.98 Gbits/sec   52    655 KBytes       
+[ 13]   0.00-1.00   sec   239 MBytes  2.00 Gbits/sec   33    856 KBytes       
+[SUM]   0.00-1.00   sec  1.16 GBytes  10.0 Gbits/sec  176             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec   238 MBytes  1.99 Gbits/sec   28    909 KBytes       
+[  7]   1.00-2.00   sec   235 MBytes  1.97 Gbits/sec   49    734 KBytes       
+[  9]   1.00-2.00   sec   235 MBytes  1.97 Gbits/sec   11    717 KBytes       
+[ 11]   1.00-2.00   sec   240 MBytes  2.01 Gbits/sec   22    760 KBytes       
+[ 13]   1.00-2.00   sec   237 MBytes  1.99 Gbits/sec   24    830 KBytes       
+[SUM]   1.00-2.00   sec  1.16 GBytes  9.94 Gbits/sec  134             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec   234 MBytes  1.96 Gbits/sec   23    743 KBytes       
+[  7]   2.00-3.00   sec   238 MBytes  1.99 Gbits/sec   30    586 KBytes       
+[  9]   2.00-3.00   sec   238 MBytes  2.00 Gbits/sec   40    725 KBytes       
+[ 11]   2.00-3.00   sec   237 MBytes  1.99 Gbits/sec   19    699 KBytes       
+[ 13]   2.00-3.00   sec   239 MBytes  2.00 Gbits/sec   18    874 KBytes       
+[SUM]   2.00-3.00   sec  1.16 GBytes  9.95 Gbits/sec  130             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec   239 MBytes  2.00 Gbits/sec   10    690 KBytes       
+[  7]   3.00-4.00   sec   240 MBytes  2.01 Gbits/sec   18    918 KBytes       
+[  9]   3.00-4.00   sec   241 MBytes  2.02 Gbits/sec   31    848 KBytes       
+[ 11]   3.00-4.00   sec   234 MBytes  1.96 Gbits/sec   19    690 KBytes       
+[ 13]   3.00-4.00   sec   232 MBytes  1.95 Gbits/sec   18    629 KBytes       
+[SUM]   3.00-4.00   sec  1.16 GBytes  9.95 Gbits/sec   96             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec   236 MBytes  1.98 Gbits/sec   26    463 KBytes       
+[  7]   4.00-5.00   sec   235 MBytes  1.97 Gbits/sec   15    830 KBytes       
+[  9]   4.00-5.00   sec   234 MBytes  1.96 Gbits/sec   51    655 KBytes       
+[ 11]   4.00-5.00   sec   240 MBytes  2.01 Gbits/sec   12    804 KBytes       
+[ 13]   4.00-5.00   sec   241 MBytes  2.02 Gbits/sec   23    909 KBytes       
+[SUM]   4.00-5.00   sec  1.16 GBytes  9.94 Gbits/sec  127             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   5.00-6.00   sec   238 MBytes  1.99 Gbits/sec   16    629 KBytes       
+[  7]   5.00-6.00   sec   235 MBytes  1.97 Gbits/sec   40    638 KBytes       
+[  9]   5.00-6.00   sec   239 MBytes  2.01 Gbits/sec   22    638 KBytes       
+[ 11]   5.00-6.00   sec   238 MBytes  2.00 Gbits/sec   14    664 KBytes       
+[ 13]   5.00-6.00   sec   237 MBytes  1.99 Gbits/sec   19    883 KBytes       
+[SUM]   5.00-6.00   sec  1.16 GBytes  9.96 Gbits/sec  111             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   6.00-7.00   sec   238 MBytes  1.99 Gbits/sec   10    821 KBytes       
+[  7]   6.00-7.00   sec   240 MBytes  2.01 Gbits/sec   26    752 KBytes       
+[  9]   6.00-7.00   sec   237 MBytes  1.99 Gbits/sec   25    909 KBytes       
+[ 11]   6.00-7.00   sec   236 MBytes  1.98 Gbits/sec    6    856 KBytes       
+[ 13]   6.00-7.00   sec   232 MBytes  1.95 Gbits/sec   30    655 KBytes       
+[SUM]   6.00-7.00   sec  1.16 GBytes  9.92 Gbits/sec   97             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   7.00-8.00   sec   234 MBytes  1.96 Gbits/sec   20    586 KBytes       
+[  7]   7.00-8.00   sec   238 MBytes  1.99 Gbits/sec   27    778 KBytes       
+[  9]   7.00-8.00   sec   237 MBytes  1.99 Gbits/sec   39    856 KBytes       
+[ 11]   7.00-8.00   sec   238 MBytes  2.00 Gbits/sec   24    673 KBytes       
+[ 13]   7.00-8.00   sec   241 MBytes  2.02 Gbits/sec    9    926 KBytes       
+[SUM]   7.00-8.00   sec  1.16 GBytes  9.97 Gbits/sec  119             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   8.00-9.00   sec   241 MBytes  2.02 Gbits/sec   14    594 KBytes       
+[  7]   8.00-9.00   sec   238 MBytes  1.99 Gbits/sec   16    734 KBytes       
+[  9]   8.00-9.00   sec   238 MBytes  1.99 Gbits/sec   21    594 KBytes       
+[ 11]   8.00-9.00   sec   234 MBytes  1.96 Gbits/sec   20    752 KBytes       
+[ 13]   8.00-9.00   sec   236 MBytes  1.98 Gbits/sec   26    664 KBytes       
+[SUM]   8.00-9.00   sec  1.16 GBytes  9.95 Gbits/sec   97             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   9.00-10.00  sec   239 MBytes  2.00 Gbits/sec   15    752 KBytes       
+[  7]   9.00-10.00  sec   235 MBytes  1.97 Gbits/sec   24    664 KBytes       
+[  9]   9.00-10.00  sec   234 MBytes  1.97 Gbits/sec   47    586 KBytes       
+[ 11]   9.00-10.00  sec   238 MBytes  2.00 Gbits/sec   16    664 KBytes       
+[ 13]   9.00-10.00  sec   240 MBytes  2.01 Gbits/sec   21    918 KBytes       
+[SUM]   9.00-10.00  sec  1.16 GBytes  9.95 Gbits/sec  123             
 - - - - - - - - - - - - - - - - - - - - - - - - -
 [ ID] Interval           Transfer     Bitrate         Retr
-[  5]   0.00-10.00  sec  5.79 GBytes  4.97 Gbits/sec    3             sender
-[  5]   0.00-10.04  sec  5.78 GBytes  4.95 Gbits/sec                  receiver
+[  5]   0.00-10.00  sec  2.32 GBytes  1.99 Gbits/sec  171             sender
+[  5]   0.00-10.04  sec  2.31 GBytes  1.98 Gbits/sec                  receiver
+[  7]   0.00-10.00  sec  2.32 GBytes  1.99 Gbits/sec  300             sender
+[  7]   0.00-10.04  sec  2.31 GBytes  1.98 Gbits/sec                  receiver
+[  9]   0.00-10.00  sec  2.32 GBytes  1.99 Gbits/sec  314             sender
+[  9]   0.00-10.04  sec  2.31 GBytes  1.98 Gbits/sec                  receiver
+[ 11]   0.00-10.00  sec  2.32 GBytes  1.99 Gbits/sec  204             sender
+[ 11]   0.00-10.04  sec  2.31 GBytes  1.98 Gbits/sec                  receiver
+[ 13]   0.00-10.00  sec  2.32 GBytes  1.99 Gbits/sec  221             sender
+[ 13]   0.00-10.04  sec  2.31 GBytes  1.98 Gbits/sec                  receiver
+[SUM]   0.00-10.00  sec  11.6 GBytes  9.95 Gbits/sec  1210             sender
+[SUM]   0.00-10.04  sec  11.6 GBytes  9.90 Gbits/sec                  receiver
 
 iperf Done.
+
+---
+
+## 🔐 Notes on Security Context
+
+- Both pods use `hostNetwork: true` for direct interface access.
+- Require `NET_ADMIN` capability to manage low-level networking.
+
+---
 

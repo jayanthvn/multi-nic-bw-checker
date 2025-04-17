@@ -5,7 +5,7 @@ metadata:
 spec:
   containers:
   - name: bw-server
-    image: multi-bw:v4
+    image: multi-bw:v6
     command: ["/bin/bash", "-c", "ls -l /usr/local/bin/ && /usr/local/bin/bandwidth-checker"]  
     env:
     - name: IPERF_MODE
