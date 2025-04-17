@@ -7,6 +7,15 @@ A simple containerized Go app to check max bandwidth across all pod interfaces u
 ```bash
 make build
 
+## Steps
+1. Update image tag in client and server pod yamls.
+2. Apply server yaml
+3. Update server IP in client's yaml TARGET_IP
+4. Apply client yaml
+5. Check client pod logs
+
+
+## YAML changes
 ```Run server in one pod:
 
 
@@ -23,7 +32,8 @@ env:
 - name: TARGET_IP
   value: "SERVER_IP"
 
-```Test run
+
+## Test run
 
 kubectl logs bw-client
 
