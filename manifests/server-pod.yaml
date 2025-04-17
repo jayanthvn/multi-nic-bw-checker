@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bw-server
+spec:
+  containers:
+  - name: server
+    image: your-repo/multi-nic-bw-checker:latest
+    env:
+    - name: IPERF_MODE
+      value: "server"
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN"]
+

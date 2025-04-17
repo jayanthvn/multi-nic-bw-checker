@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bw-client
+spec:
+  containers:
+  - name: client
+    image: your-repo/multi-nic-bw-checker:latest
+    command: ["/bin/sh"]
+    args: ["-c", "sleep infinity"]
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN"]
+
