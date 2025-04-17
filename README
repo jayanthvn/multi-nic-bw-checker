@@ -180,7 +180,7 @@ iperf Done.
 
 ## 🔐 Notes on Security Context
 
-- Both pods use `hostNetwork: true` for direct interface access.
+- Both pods doesn't use `hostNetwork: true` for direct interface access.
 - Require `NET_ADMIN` capability to manage low-level networking.
 
 ---
