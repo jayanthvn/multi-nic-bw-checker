@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 )
@@ -18,12 +19,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("iperf3 server failed: %v", err)
 		}
-		// iperf3 should block and keep the pod running.
 		return
 	}
 
-	ip := os.Getenv("TARGET_IP")
-	if ip == "" {
+	targetIP := os.Getenv("TARGET_IP")
+	if targetIP == "" {
 		log.Fatal("TARGET_IP not set")
 	}
 	duration := os.Getenv("DURATION")
@@ -31,12 +31,34 @@ func main() {
 		duration = "10"
 	}
 
-	fmt.Printf("Testing bandwidth to %s for %s seconds\n", ip, duration)
-	cmd := exec.Command("iperf3", "-c", ip, "-t", duration)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
+	interfaces, err := net.Interfaces()
 	if err != nil {
-		log.Fatalf("iperf3 client failed: %v", err)
+		log.Fatalf("failed to list interfaces: %v", err)
+	}
+
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			log.Printf("Skipping interface %s: cannot get addresses: %v", iface.Name, err)
+			continue
+		}
+		for _, addr := range addrs {
+			ip, _, err := net.ParseCIDR(addr.String())
+			if err != nil || ip.To4() == nil {
+				continue // skip non-IPv4 or malformed
+			}
+
+			fmt.Printf("Testing bandwidth from %s (%s) to %s for %s seconds\n", iface.Name, ip.String(), targetIP, duration)
+			cmd := exec.Command("iperf3", "-B", ip.String(), "-c", targetIP, "-t", duration)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				log.Printf("iperf3 client on %s failed: %v", iface.Name, err)
+			}
+		}
 	}
 }
