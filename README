@@ -7,3 +7,19 @@ A simple containerized Go app to check max bandwidth across all pod interfaces u
 ```bash
 make build
 
+```Run server in one pod:
+
+
+env:
+- name: IPERF_MODE
+  value: "server"
+
+```Run client in another:
+
+
+env:
+- name: IPERF_MODE
+  value: "client"
+- name: TARGET_IP
+  value: "SERVER_IP"
+
